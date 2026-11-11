@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual">
+<meta name="theme-color" content="#130e08">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Lords of the Realm II</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21M8 10.5h5M10.5 8v5"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.4" r="1.1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-keys" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7.5 14h9"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5v5h3.8l5 4V5.5l-5 4z"/><path class="w" d="M16.2 9.2a4 4 0 0 1 0 5.6M18.8 6.6a7.6 7.6 0 0 1 0 10.8"/><path class="x" d="M16.5 9.5l5 5M21.5 9.5l-5 5"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  </defs>
+</svg>
+
+<div id="app">
+  <div id="view">
+    <div id="stage"><canvas id="screen" width="640" height="480"></canvas></div>
+
+    <div id="overlay">
+      <div id="pad" aria-label="Scroll the map">
+        <svg class="a up"    viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+        <svg class="a right" viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+        <svg class="a down"  viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+        <svg class="a left"  viewBox="0 0 24 24"><use href="#i-chev"/></svg>
+        <div id="knob"></div>
+      </div>
+      <div id="fabs">
+        <button id="bRight" class="fab" aria-label="Right-click (info) on next tap"><svg class="ic"><use href="#i-info"/></svg><span>Info</span></button>
+        <button id="bZoom"  class="fab" aria-label="Zoom"><svg class="ic"><use href="#i-zoom"/></svg><span>Zoom</span></button>
+      </div>
+      <div id="loupe" class="hidden">
+        <canvas id="loupeCv" width="132" height="132"></canvas>
+        <svg id="ring" viewBox="0 0 140 140"><circle cx="70" cy="70" r="66"/><circle id="ringArc" cx="70" cy="70" r="66"/></svg>
+        <i class="cross h"></i><i class="cross v"></i>
+      </div>
+    </div>
+  </div>
+
+  <nav id="bar" aria-label="Game controls">
+    <button id="bKeys"  aria-label="Keyboard"><svg class="ic"><use href="#i-keys"/></svg><span>Keys</span></button>
+    <button id="bSound" aria-label="Sound"><svg class="ic"><use href="#i-sound"/></svg><span>Sound</span></button>
+    <button id="bFull"  aria-label="Full screen"><svg class="ic"><use href="#i-full"/></svg><span>Full</span></button>
+    <button id="bMenu"  aria-label="Menu"><svg class="ic"><use href="#i-menu"/></svg><span>Menu</span></button>
+  </nav>
+
+  <input id="kbd" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="keyboard input" tabindex="-1">
+  <div id="keystrip" class="hidden" role="toolbar" aria-label="Editing keys">
+    <button type="button" data-k="home">Home</button>
+    <button type="button" data-k="left" aria-label="Cursor left">&#9664;</button>
+    <button type="button" data-k="right" aria-label="Cursor right">&#9654;</button>
+    <button type="button" data-k="end">End</button>
+    <button type="button" data-k="del">Del</button>
+    <button type="button" data-k="bs" aria-label="Backspace">&#9003;</button>
+    <button type="button" data-k="clear">Clear</button>
+    <button type="button" data-k="enter" aria-label="Enter">&#8629;</button>
+    <button type="button" data-k="done" aria-label="Hide the keyboard">Done</button>
+  </div>
+  <div id="toast" role="status"></div>
+
+  <div id="menu" class="overlay hidden">
+    <div class="card">
+      <h2>Menu</h2>
+      <ul class="help">
+        <li><b>Tap</b> — click</li>
+        <li><b>Hold</b> a finger — right-click (shows info about what you touch; right-click again, or just tap, to close it)</li>
+        <li><b>Two-finger tap</b> — right-click</li>
+        <li><b>Pinch / two-finger drag</b> — zoom &amp; pan the picture</li>
+        <li><b>Scroll pad</b> (bottom-left) — scroll the campaign map; on a keyboard use the arrow keys or touch the screen edge</li>
+      </ul>
+      <label class="row"><span>Scroll pad &amp; buttons</span><input type="checkbox" id="optPad"></label>
+      <label class="row"><span>Magnifier while pressing</span><input type="checkbox" id="optLoupe"></label>
+      <button id="mReset" class="wide">Delete saved games</button>
+      <button id="mForget" class="wide">Forget cached game files</button>
+      <button id="menuClose" class="wide primary">Back to the game</button>
+    </div>
+  </div>
+
+  <div id="ended" class="overlay hidden">
+    <div class="card">
+      <h2>Lords of the Realm II</h2>
+      <p id="endedMsg"></p>
+      <button id="restartBtn" class="wide primary">Start again</button>
+    </div>
+  </div>
+
+  <div id="loader" class="overlay">
+    <div class="card">
+      <h1>Lords of the Realm <em>II</em></h1>
+      <p class="sub">Demo — native WebAssembly port</p>
+
+      <div id="pickBox">
+        <p>The game's code runs here as WebAssembly, recompiled from the original program — no emulator. Its graphics, sound and maps are not part of this page: give it your own copy of the demo installer.</p>
+        <label class="drop" for="file">
+          <strong>Choose <code>lorddemo.exe</code></strong>
+          <span>or drop it here</span>
+        </label>
+        <input id="file" type="file" accept=".exe,.zip,application/octet-stream" hidden>
+        <p class="muted small">The installer is unpacked in your browser and kept in its local storage. Nothing is uploaded anywhere.</p>
+      </div>
+
+      <div id="playBox" class="hidden">
+        <button id="playBtn" class="wide primary big">▶ Play</button>
+        <button id="otherBtn" class="link">Use a different file</button>
+      </div>
+
+      <div id="progress" class="hidden"><div></div></div>
+      <p id="status" class="status"></p>
+      <p id="error" class="error hidden"></p>
+    </div>
+  </div>
+</div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
