@@ -14,7 +14,7 @@ work on any static host that serves them over HTTPS (or from `http://localhost`)
 uses ES modules, WebAssembly and IndexedDB.
 
 1. Open the page and give it your own copy of the demo installer, `lorddemo.exe` (7.5 MB; the Internet Archive item
-   *LordsoftheRealmII_1020* offers it). The page checks it, unpacks it in your browser and keeps a copy in the browser's
+   *[LordsoftheRealmII_1020](https://archive.org/details/LordsoftheRealmII_1020)* offers it). The page checks it, unpacks it in your browser and keeps a copy in the browser's
    local storage, so the file is asked for once. Nothing is uploaded.
 2. Tap **Play**.
 
