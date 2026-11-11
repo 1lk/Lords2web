@@ -154,6 +154,7 @@ h2 { margin: 0 0 8px; font: 600 22px/1.2 Georgia, serif; color: var(--gold); }
 .sub { text-align: center; margin: 4px 0 16px; color: var(--muted); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
 p { margin: 0 0 12px; }
 .muted { color: var(--muted); } .small { font-size: 13px; }
+.card a { color: var(--gold); }
 code { background: #00000055; padding: 1px 5px; border-radius: 4px; font-size: .92em; }
 ul.help { margin: 0 0 12px; padding-left: 18px; font-size: 14px; color: #dccfb2; }
 ul.help li { margin: 3px 0; }
@@ -177,4 +178,4 @@ button.link { display: block; margin: 12px auto 0; background: none; border: 0; 
 #progress { height: 8px; background: #00000066; border-radius: 99px; overflow: hidden; margin-top: 14px; }
 #progress > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold2), var(--gold)); transition: width .15s; }
 .status { margin: 10px 0 0; text-align: center; color: var(--muted); font-size: 14px; min-height: 1.4em; }
-.error { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: #3b1710; border: 1px solid var(--red); color: #ffd7cc; font-size: 14px; }
+.error { margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: #3b1710; border: 1px solid var(--red); color: #ffd7cc; font-size: 14px; }

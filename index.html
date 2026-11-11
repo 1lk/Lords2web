@@ -102,14 +102,22 @@
       <h1>Lords of the Realm <em>II</em></h1>
       <p class="sub">Demo — native WebAssembly port</p>
 
-      <div id="pickBox">
-        <p>The game's code runs here as WebAssembly, recompiled from the original program — no emulator. Its graphics, sound and maps are not part of this page: give it your own copy of the demo installer.</p>
+      <p id="error" class="error hidden"></p>
+
+      <div id="fetchBox" class="hidden">
+        <p>The game's code runs here as WebAssembly, recompiled from the original program, with no emulator. Its graphics, sound and maps are not part of this page. They come from the demo installer, which your browser downloads from the <a href="https://archive.org/details/LordsoftheRealmII_1020" target="_blank" rel="noopener">Internet Archive</a> the first time (about 7 MB) and keeps afterwards.</p>
+        <button id="ownBtn" class="link">Use a file of my own instead</button>
+      </div>
+
+      <div id="pickBox" class="hidden">
+        <p>Get <code>lorddemo.zip</code> from the <a href="https://archive.org/details/LordsoftheRealmII_1020" target="_blank" rel="noopener">Internet Archive item</a> and choose it here. The <code>lorddemo.exe</code> inside it works too.</p>
         <label class="drop" for="file">
-          <strong>Choose <code>lorddemo.exe</code></strong>
+          <strong>Choose <code>lorddemo.zip</code> or <code>lorddemo.exe</code></strong>
           <span>or drop it here</span>
         </label>
-        <input id="file" type="file" accept=".exe,.zip,application/octet-stream" hidden>
+        <input id="file" type="file" accept=".exe,.zip,application/zip,application/octet-stream" hidden>
         <p class="muted small">The installer is unpacked in your browser and kept in its local storage. Nothing is uploaded anywhere.</p>
+        <button id="archiveBtn" class="link">Try the Internet Archive download</button>
       </div>
 
       <div id="playBox" class="hidden">
@@ -119,7 +127,6 @@
 
       <div id="progress" class="hidden"><div></div></div>
       <p id="status" class="status"></p>
-      <p id="error" class="error hidden"></p>
     </div>
   </div>
 </div>

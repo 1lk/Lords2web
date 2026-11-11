@@ -1,6 +1,6 @@
 // Lords of the Realm II (demo) - web port front end: loading, display layout, touch / mouse / keyboard input, UI.
 import { Runtime, AudioOut, EV } from './runtime.js';
-import { extractGameFiles, checkExe, buildImage, extractCursors, store } from './loader.js';
+import { extractGameFiles, checkExe, buildImage, extractCursors, store, fetchInstaller } from './loader.js';
 
 const $ = (id) => document.getElementById(id);
 const stage = $('stage'), canvas = $('screen'), overlay = $('overlay');
@@ -521,11 +521,41 @@ async function boot(files, fromCache) {
   gameFiles = new Map([...files].filter(([k]) => !/\.(EXE|DLL)$/i.test(k) && k !== 'STATUS.TXT'));
   if (!fromCache) { setStatus('Saving a copy in this browser…', 0.8); await store.putGame(files).catch((e) => console.warn('cache failed', e)); }
   setStatus('Ready.', 1);
-  show('playBox', true); show('pickBox', false);
+  show('playBox', true); show('pickBox', false); show('fetchBox', false);
+}
+
+const mb = (n) => (n / 1048576).toFixed(1);
+let archiveJob = null;                               // AbortController of a download in progress
+
+// Download the installer from the Internet Archive, unpack it and keep it; on any failure the file picker comes up instead.
+async function loadFromArchive() {
+  if (archiveJob) return;
+  const job = archiveJob = new AbortController();
+  showError('');
+  show('pickBox', false); show('playBox', false); show('fetchBox', true);
+  setStatus('Contacting the Internet Archive…', 0.02);
+  try {
+    const { bytes, source } = await fetchInstaller((p, got, total) =>
+      setStatus('Downloading the demo from the Internet Archive… ' + mb(got) + ' of ' + mb(total) + ' MB', 0.03 + 0.6 * p), job.signal);
+    console.info('installer from', source);
+    show('fetchBox', false);
+    setStatus('Unpacking the installer…', 0.65);
+    const files = await extractGameFiles(bytes, (p) => setStatus('Unpacking the installer…', 0.65 + 0.15 * p));
+    await boot(files, false);
+  } catch (err) {
+    if (err.name === 'AbortError') return;           // the player chose a file of their own
+    console.warn('archive download failed:', err.details || err.message);
+    setStatus('', null);
+    show('fetchBox', false); show('pickBox', true); show('playBox', false);
+    const why = err.details && err.details[0] ? ' (' + err.details[0].replace(/^[^:]*: /, '') + ')' : '';
+    showError(err.details ? "Couldn't download the demo from the Internet Archive" + why + '.' : err.message || String(err));
+  } finally { if (archiveJob === job) archiveJob = null; }
 }
 
 async function loadFromFile(file) {
   showError('');
+  if (archiveJob) archiveJob.abort();
+  show('fetchBox', false);
   try {
     setStatus('Reading ' + file.name + '…', 0.02);
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -574,6 +604,8 @@ $('playBtn').addEventListener('click', () => {
   startGame().catch((err) => { console.error(err); showError(err.message); show('loader', true); });
 });
 $('otherBtn').addEventListener('click', () => { show('playBox', false); show('pickBox', true); setStatus('', null); });
+$('ownBtn').addEventListener('click', () => { if (archiveJob) archiveJob.abort(); show('fetchBox', false); show('pickBox', true); setStatus('', null); });
+$('archiveBtn').addEventListener('click', () => loadFromArchive());
 $('restartBtn').addEventListener('click', () => location.reload());
 
 $('bZoom').addEventListener('click', () => setPreset(view.preset < 0 ? 1 : (view.preset + 1) % 3));
@@ -627,7 +659,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
   try { wasmOk = !!window.WebAssembly && !!new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])); } catch { wasmOk = false; }
   if (!wasmOk) {
     showError('WebAssembly is not available here, so the game cannot start. Open this page directly in a current Chrome, Safari or Firefox (some embedded viewers block it).');
-    show('pickBox', false); return;
+    show('pickBox', false); show('fetchBox', false); return;
   }
   if (typeof DecompressionStream === 'undefined') showError('This browser is too old to unpack the installer (DecompressionStream is missing).');
   try {
@@ -635,6 +667,7 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
       setStatus('Loading cached game files…', 0.3);
       await boot(await store.getGame(), true);
       if (params.has('auto')) startGame();
-    } else { show('pickBox', true); setStatus('', null); }
-  } catch (err) { console.error(err); showError(err.message); show('pickBox', true); show('playBox', false); }
+    } else if (params.has('nofetch')) { show('pickBox', true); setStatus('', null); }     // ?nofetch: go straight to the file picker
+    else loadFromArchive();
+  } catch (err) { console.error(err); showError(err.message); show('pickBox', true); show('playBox', false); show('fetchBox', false); }
 })();

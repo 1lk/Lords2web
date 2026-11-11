@@ -1,7 +1,7 @@
 // Offline cache for the app shell (page, scripts, wasm, icons). Game data never goes through here: it is unpacked from the
 // player's own installer and kept in IndexedDB.  VERSION is stamped by tools/package.sh; a new version installs side by side
 // and takes over once every open tab has been closed, so scripts and wasm of different releases are never mixed.
-const VERSION = 'e6f5ba1debf2';
+const VERSION = 'ffbf13715b3a';
 const CACHE = 'lords2-shell-' + VERSION;
 const SHELL = [
   './', 'index.html', 'style.css', 'main.js', 'runtime.js', 'loader.js', 'lords2.wasm', 'manifest.webmanifest',

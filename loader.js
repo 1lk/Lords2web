@@ -1,8 +1,9 @@
 // Data loading for the web port.
 //
 // The page ships only the recompiled game logic (lords2.wasm).  Everything that belongs to the original
-// game - the executable image's data section, graphics, sounds, maps - is taken from the player's own copy of
-// the "Lords of the Realm II" demo installer (lorddemo.exe), unpacked in the browser and cached locally.
+// game - the executable image's data section, graphics, sounds, maps - comes from the "Lords of the Realm II" demo
+// installer (lorddemo.exe): downloaded from the Internet Archive or chosen by the player, unpacked in the browser and
+// cached locally.
 
 export const EXPECTED_EXE = { size: 718848, crc32: 0x490e9d4f, imageBase: 0x400000, imageSize: 0x15c000, entryRva: 0x86700 };
 
@@ -46,6 +47,115 @@ export async function zipEntry(d, ent) {
   if (ent.method === 0) return raw.slice();
   if (ent.method === 8) return inflateRaw(raw);
   throw new Error('unsupported zip method ' + ent.method + ' for ' + ent.name);
+}
+
+// ---------------------------------------------------------------- download from the Internet Archive
+// The demo is item LordsoftheRealmII_1020 on archive.org; its only real file is lorddemo.zip (the installer lorddemo.exe inside).
+// A page may read a cross-origin response only if the server sends CORS headers (and every redirect on the way must carry them
+// too).  archive.org's plain file downloads are redirected to data servers that do not send them, but a file *inside* a zip is
+// served by that server's view_archive.php, which does.  So the installer is requested from inside the zip, first through
+// archive.org's own address and then, in case that redirect is what the browser objects to, straight from the data server named
+// by the item's metadata (the metadata API is CORS-enabled).  The zip itself is the last try.  Anything that goes wrong ends in
+// a readable error and the page falls back to a file picker, so the worst case is the old behaviour.
+export const ARCHIVE = {
+  item: 'LordsoftheRealmII_1020',
+  page: 'https://archive.org/details/LordsoftheRealmII_1020',
+  zip: 'lorddemo.zip',
+  inner: ['lorddemo.exe', 'LORDDEMO.EXE'],        // the installer's name inside the zip (the name is case-sensitive on the server)
+  size: 7522110,                                 // lorddemo.exe; only used to draw the progress bar
+};
+
+const NOT_ALLOWED = 'the browser was not allowed to read it';
+
+async function request(url, signal, ms) {            // fetch() with a time limit; resolves once the headers are in
+  const ctl = new AbortController();
+  const relay = () => ctl.abort();
+  if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', relay, { once: true }); }
+  let timer = 0, late = false;
+  const kick = (m) => { clearTimeout(timer); timer = setTimeout(() => { late = true; ctl.abort(); }, m); };
+  const done = () => { clearTimeout(timer); if (signal) signal.removeEventListener('abort', relay); };
+  kick(ms);
+  try {
+    const resp = await fetch(url, { mode: 'cors', credentials: 'omit', redirect: 'follow', referrerPolicy: 'no-referrer', signal: ctl.signal });
+    return { resp, kick, done, late: () => late };
+  } catch (e) {
+    done();
+    if (signal && signal.aborted) throw e;            // the player gave up
+    if (late) throw new Error('no answer');
+    throw new Error(typeof navigator !== 'undefined' && navigator.onLine === false ? 'no internet connection' : NOT_ALLOWED);   // blocked, unreachable, or no CORS headers: the page cannot tell which
+  }
+}
+
+async function downloadOne(url, onProgress, signal, stallMs) {
+  const h = await request(url, signal, stallMs);
+  try {
+    const resp = h.resp;
+    if (!resp.ok) { try { if (resp.body) resp.body.cancel(); } catch { /* ignore */ } throw new Error('answered ' + resp.status); }
+    const total = +resp.headers.get('content-length') || ARCHIVE.size;
+    const chunks = [];
+    let got = 0;
+    if (resp.body && resp.body.getReader) {
+      const rd = resp.body.getReader();
+      for (;;) {
+        h.kick(stallMs);
+        let r;
+        try { r = await rd.read(); } catch (e) { throw h.late() ? new Error('the download stalled') : signal && signal.aborted ? e : new Error('the download was interrupted'); }
+        if (r.done) break;
+        chunks.push(r.value); got += r.value.length;
+        onProgress(Math.min(0.99, got / total), got, Math.max(total, got));
+      }
+    } else { h.kick(stallMs); const b = new Uint8Array(await resp.arrayBuffer()); chunks.push(b); got = b.length; }
+    const out = new Uint8Array(got);
+    let o = 0;
+    for (const c of chunks) { out.set(c, o); o += c.length; }
+    if (out.length < 1000000 || !((out[0] === 0x4d && out[1] === 0x5a) || (out[0] === 0x50 && out[1] === 0x4b))) throw new Error('it was not the installer');
+    onProgress(1, got, got);
+    return out;
+  } finally { h.done(); }
+}
+
+// Where the item lives right now: [{ host, dir }] from its metadata (CORS-enabled); [] if that can't be read.
+async function dataServers(base, signal, stallMs) {
+  try {
+    const h = await request(base + '/metadata/' + ARCHIVE.item, signal, stallMs);
+    try {
+      if (!h.resp.ok) return [];
+      h.kick(stallMs);
+      const m = await h.resp.json();
+      const hosts = [...new Set([m.server, ...(m.workable_servers || []), m.d1, m.d2].filter((x) => typeof x === 'string' && /^[a-z0-9.-]+\.archive\.org$/i.test(x)))];
+      return typeof m.dir === 'string' && /^\/[\w./-]+$/.test(m.dir) ? hosts.slice(0, 2).map((host) => ({ host, dir: m.dir })) : [];
+    } finally { h.done(); }
+  } catch (e) { if (signal && signal.aborted) throw e; return []; }
+}
+
+const label = (url) => { try { const u = new URL(url); return u.hostname + '/' + (u.searchParams.get('file') || u.pathname.split('/').pop()); } catch { return url; } };
+
+// Returns { bytes, source }.  Throws Error (message = what the player can read; .details lists every try) or an AbortError when `signal` fires.
+// opts: { stallMs: how long a silent connection is waited for, sources: [urls] to try instead of the built-in routes, base: archive address }
+export async function fetchInstaller(onProgress = () => {}, signal = null, opts = {}) {
+  const { stallMs = 25000, sources = null, base = 'https://archive.org' } = opts;
+  const why = [];
+  const attempt = async (url) => {
+    try { return { bytes: await downloadOne(url, onProgress, signal, stallMs), source: url }; }
+    catch (e) { if (e.name === 'AbortError') throw e; why.push(label(url) + ': ' + e.message); return e; }
+  };
+  const route = async (urls) => {                  // the same file under different names: only a 404 makes the next name worth a try
+    for (const url of urls) { const r = await attempt(url); if (!(r instanceof Error)) return r; if (!/answered 404/.test(r.message)) break; }
+    return null;
+  };
+  let r;
+  if (sources) { for (const url of sources) if ((r = await route([url]))) return r; }
+  else {
+    const front = base + '/download/' + ARCHIVE.item + '/' + ARCHIVE.zip;
+    if ((r = await route(ARCHIVE.inner.map((n) => front + '/' + n)))) return r;
+    for (const { host, dir } of await dataServers(base, signal, stallMs)) {
+      if ((r = await route(ARCHIVE.inner.map((n) => 'https://' + host + '/view_archive.php?archive=' + dir + '/' + ARCHIVE.zip + '&file=' + encodeURIComponent(n))))) return r;
+    }
+    if ((r = await route([front]))) return r;
+  }
+  const err = new Error('The demo could not be downloaded from the Internet Archive (' + why.join('; ') + ').');
+  err.details = why;
+  throw err;
 }
 
 // ---------------------------------------------------------------- crc32
